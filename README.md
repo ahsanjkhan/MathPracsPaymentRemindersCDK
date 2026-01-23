@@ -8,7 +8,7 @@ You can learn more about MathPracs at https://mathpracs.com
 
 This uses the power of AWS Cloud Development Kit (CDK) to create the following infrastructure:
 
-1. AWS Lambda Function
+1. AWS Lambda Function - https://github.com/ahsanjkhan/MathPracsPaymentRemindersLambda
 2. AWS DynamoDB Table
 3. AWS EventBridge Scheduler
 4. AWS SecretsManager (Auth for Google Calendar API Access, Google Sheets API Access, Twilio API)
