@@ -11,9 +11,16 @@ export class MathPracsPaymentRemindersStack extends cdk.Stack {
   constructor(scope: Construct, id: string, props?: cdk.StackProps) {
     super(scope, id, props);
 
-    // DynamoDB Table for storing payment reminders
-    const paymentTable = new dynamodb.Table(this, 'PaymentRemindersTable', {
-      tableName: 'mathpracs-payment-reminders',
+    // DynamoDB Tables
+    const studentPaymentTable = new dynamodb.Table(this, 'StudentPaymentRemindersTable', {
+      tableName: 'mathpracs-student-payment-reminders',
+      partitionKey: { name: 'uid', type: dynamodb.AttributeType.STRING },
+      billingMode: dynamodb.BillingMode.PAY_PER_REQUEST,
+      removalPolicy: cdk.RemovalPolicy.RETAIN,
+    });
+
+    const tutorPaymentTable = new dynamodb.Table(this, 'TutorPaymentRemindersTable', {
+      tableName: 'mathpracs-tutor-payment-reminders',
       partitionKey: { name: 'uid', type: dynamodb.AttributeType.STRING },
       billingMode: dynamodb.BillingMode.PAY_PER_REQUEST,
       removalPolicy: cdk.RemovalPolicy.RETAIN,
@@ -36,29 +43,46 @@ export class MathPracsPaymentRemindersStack extends cdk.Stack {
       }
     });
 
-    // Lambda function with Python dependencies
-    const paymentReminderLambda = new python.PythonFunction(this, 'PaymentReminderFunction', {
-      functionName: 'mathpracs-payment-reminder',
+    // Student Payment Reminder Lambda
+    const studentPaymentLambda = new python.PythonFunction(this, 'StudentPaymentReminderFunction', {
+      functionName: 'mathpracs-student-payment-reminder',
       runtime: lambda.Runtime.PYTHON_3_10,
-      entry: '../MathPracsPaymentRemindersLambda',
+      entry: '../MathPracsPaymentRemindersLambda/student_payments',
       index: 'handler/lambda_function.py',
       handler: 'lambda_handler',
       timeout: cdk.Duration.minutes(5),
       memorySize: 512,
       environment: {
-        PAYMENT_TABLE_NAME: paymentTable.tableName,
+        STUDENT_PAYMENT_TABLE_NAME: studentPaymentTable.tableName,
+        SECRETS_ARN: apiSecrets.secretArn,
+      },
+    });
+
+    // Tutor Payment Reminder Lambda
+    const tutorPaymentLambda = new python.PythonFunction(this, 'TutorPaymentReminderFunction', {
+      functionName: 'mathpracs-tutor-payment-reminder',
+      runtime: lambda.Runtime.PYTHON_3_10,
+      entry: '../MathPracsPaymentRemindersLambda/tutor_payments',
+      index: 'handler/lambda_function.py',
+      handler: 'lambda_handler',
+      timeout: cdk.Duration.minutes(5),
+      memorySize: 512,
+      environment: {
+        TUTOR_PAYMENT_TABLE_NAME: tutorPaymentTable.tableName,
         SECRETS_ARN: apiSecrets.secretArn,
       },
     });
 
     // Grant Lambda permissions
-    paymentTable.grantReadWriteData(paymentReminderLambda);
-    apiSecrets.grantRead(paymentReminderLambda);
+    studentPaymentTable.grantReadWriteData(studentPaymentLambda);
+    tutorPaymentTable.grantReadWriteData(tutorPaymentLambda);
+    apiSecrets.grantRead(studentPaymentLambda);
+    apiSecrets.grantRead(tutorPaymentLambda);
 
     // EventBridge rule for Sunday 6 PM Chicago time (cron: 0 23 ? * SUN *)
-    const scheduleRule = new events.Rule(this, 'PaymentReminderSchedule', {
-      ruleName: 'mathpracs-payment-reminder-schedule',
-      description: 'Triggers payment reminder Lambda every Sunday at 6 PM Chicago time',
+    const studentRemindersScheduleRule = new events.Rule(this, 'StudentPaymentReminderSchedule', {
+      ruleName: 'mathpracs-student-payment-reminder-schedule',
+      description: 'Triggers student payment reminder Lambda every Sunday at 6 PM Chicago time',
       schedule: events.Schedule.cron({
         minute: '0',
         hour: '23', // 6 PM Chicago = 11 PM UTC (during standard time)
@@ -66,17 +90,40 @@ export class MathPracsPaymentRemindersStack extends cdk.Stack {
       }),
     });
 
-    scheduleRule.addTarget(new targets.LambdaFunction(paymentReminderLambda));
+    studentRemindersScheduleRule.addTarget(new targets.LambdaFunction(studentPaymentLambda));
 
-    // Outputs
-    new cdk.CfnOutput(this, 'PaymentTableName', {
-      value: paymentTable.tableName,
-      description: 'DynamoDB table name for payment reminders'
+    // EventBridge rule for 1st of the Month at 2 PM Chicago time
+    const tutorRemindersScheduleRule = new events.Rule(this, 'TutorPaymentReminderSchedule', {
+      ruleName: 'mathpracs-tutor-payment-reminder-schedule',
+      description: 'Triggers tutor payment reminder Lambda every 1st of the Month at 2 PM Chicago time',
+      schedule: events.Schedule.cron({
+        minute: '0',
+        hour: '20', // 2 PM Chicago = 8 PM UTC (during standard time)
+        month: '*'
+      }),
     });
 
-    new cdk.CfnOutput(this, 'LambdaFunctionName', {
-      value: paymentReminderLambda.functionName,
-      description: 'Lambda function name'
+    tutorRemindersScheduleRule.addTarget(new targets.LambdaFunction(tutorPaymentLambda));
+
+    // Outputs
+    new cdk.CfnOutput(this, 'StudentPaymentTableName', {
+      value: studentPaymentTable.tableName,
+      description: 'DynamoDB table name for student payment reminders'
+    });
+
+    new cdk.CfnOutput(this, 'TutorPaymentTableName', {
+      value: tutorPaymentTable.tableName,
+      description: 'DynamoDB table name for tutor payment reminders'
+    });
+
+    new cdk.CfnOutput(this, 'StudentLambdaFunctionName', {
+      value: studentPaymentLambda.functionName,
+      description: 'Student payment reminder Lambda function name'
+    });
+
+    new cdk.CfnOutput(this, 'TutorLambdaFunctionName', {
+      value: tutorPaymentLambda.functionName,
+      description: 'Tutor payment reminders Lambda function name'
     });
 
     new cdk.CfnOutput(this, 'SecretsArn', {
