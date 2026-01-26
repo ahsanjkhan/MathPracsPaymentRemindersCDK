@@ -99,6 +99,7 @@ export class MathPracsPaymentRemindersStack extends cdk.Stack {
       schedule: events.Schedule.cron({
         minute: '0',
         hour: '20', // 2 PM Chicago = 8 PM UTC (during standard time)
+        day: '1',
         month: '*'
       }),
     });
