@@ -38,6 +38,13 @@ finch vm start
 
 #### Deploy the Stack
 
+0. **Set Node JS Version:**
+   ```bash
+   node --version # should show 20.x
+   nvm use 20 # switch to 20 if it does not
+   node --version # verify that it shows 20.x now
+   ```
+
 1. **Install dependencies:**
    ```bash
    npm install
