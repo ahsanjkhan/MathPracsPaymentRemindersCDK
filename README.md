@@ -70,9 +70,9 @@ aws secretsmanager update-secret --secret-id mathpracs-api-credentials --secret-
 
 #### Useful Commands
 
-- `npx cdk diff` - Compare deployed stack with current state
-- `npx cdk synth` - Emit the synthesized CloudFormation template
+- `CDK_DOCKER=finch npx cdk diff` - Compare deployed stack with current state
+- `CDK_DOCKER=finch npx cdk synth` - Emit the synthesized CloudFormation template
 - `CDK_DOCKER=finch npx cdk deploy` - Deploy with Finch Docker support
-- `npx cdk destroy` - Destroy the stack
+- `CDK_DOCKER=finch npx cdk destroy` - Destroy the stack
 - `finch vm status` - See Finch VM Status
 - `finch vm stop` - Stop Finch VM
