@@ -66,9 +66,9 @@ export const TUTOR_PAYMENT_LAMBDA_ENV_VAR_KEY_TUTOR_SALARY_RATE_SSM_NAME = 'TUTO
 
 export const STUDENT_REMINDERS_EVENTBRIDGE_RULE_NAME = 'mathpracs-student-payment-reminder-schedule';
 export const STUDENT_REMINDERS_EVENTBRIDGE_RULE_ID = 'StudentPaymentReminderSchedule';
-export const STUDENT_REMINDERS_EVENTBRIDGE_RULE_DESCRIPTION = 'Triggers student payment reminder Lambda every Sunday at 6 PM CST';
+export const STUDENT_REMINDERS_EVENTBRIDGE_RULE_DESCRIPTION = 'Triggers student payment reminder Lambda every Sunday at 1 PM CST';
 export const STUDENT_REMINDERS_EVENTBRIDGE_RULE_SCHEDULE_EXPRESSION_MINUTE = '0';
-export const STUDENT_REMINDERS_EVENTBRIDGE_RULE_SCHEDULE_EXPRESSION_HOUR = '23'; // 6 PM CST = 11 PM UTC (during standard time)
+export const STUDENT_REMINDERS_EVENTBRIDGE_RULE_SCHEDULE_EXPRESSION_HOUR = '18'; // 1 PM CST = 6 PM UTC (during standard time)
 export const STUDENT_REMINDERS_EVENTBRIDGE_RULE_SCHEDULE_EXPRESSION_WEEKDAY = 'SUN';
 
 export const TUTOR_REMINDERS_EVENTBRIDGE_RULE_NAME = 'mathpracs-tutor-payment-reminder-schedule';
