@@ -235,5 +235,12 @@ export class MathPracsPaymentRemindersStack extends cdk.Stack {
       value: apiSecrets.secretArn,
       description: CFN_OUTPUT_API_CREDENTIALS_SECRETS_DESCRIPTION
     });
+
+    // Cross-stack exports for MathPracsSessionRemindersCDK
+    new cdk.CfnOutput(this, 'ApiSecretsArn', {
+      value: apiSecrets.secretArn,
+      description: 'ARN of API Credentials Secret',
+      exportName: 'MathPracs-ApiSecrets-Arn'
+    });
   }
 }
