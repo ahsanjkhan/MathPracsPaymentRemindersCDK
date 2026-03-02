@@ -14,7 +14,8 @@ import {
   API_CREDENTIALS_SECRET_KEY_TWILIO_PHONE_NUMBER,
   API_CREDENTIALS_SECRET_KEY_TWILIO_SID,
   API_CREDENTIALS_SECRET_KEY_TWILIO_TOKEN,
-  API_CREDENTIALS_SECRET_NAME, API_CREDENTIALS_SECRET_PLACEHOLDER,
+  API_CREDENTIALS_SECRET_NAME,
+  API_CREDENTIALS_SECRET_PLACEHOLDER,
   CFN_OUTPUT_API_CREDENTIALS_SECRETS_DESCRIPTION,
   CFN_OUTPUT_API_CREDENTIALS_SECRETS_ID,
   CFN_OUTPUT_STUDENT_LAMBDA_DESCRIPTION,
@@ -25,6 +26,15 @@ import {
   CFN_OUTPUT_TUTOR_LAMBDA_ID,
   CFN_OUTPUT_TUTOR_PAYMENT_TABLE_DESCRIPTION,
   CFN_OUTPUT_TUTOR_PAYMENT_TABLE_ID,
+  IMPORTED_STUDENT_PAYMENT_LAMBDA_ENV_VAR_KEY_SESSIONS_TABLE_NAME,
+  IMPORTED_STUDENT_PAYMENT_LAMBDA_ENV_VAR_KEY_STUDENTS_METADATA_TABLE_NAME,
+  IMPORTED_STUDENT_PAYMENT_LAMBDA_ENV_VAR_KEY_STUDENTS_TABLE_NAME,
+  IMPORTED_TUTOR_PAYMENT_LAMBDA_ENV_VAR_KEY_DISCORD_API_SECRETS_ARN,
+  IMPORTED_TUTOR_PAYMENT_LAMBDA_ENV_VAR_KEY_SESSIONS_TABLE_NAME,
+  IMPORTED_TUTOR_PAYMENT_LAMBDA_ENV_VAR_KEY_STUDENTS_METADATA_TABLE_NAME,
+  IMPORTED_TUTOR_PAYMENT_LAMBDA_ENV_VAR_KEY_STUDENTS_TABLE_NAME,
+  IMPORTED_TUTOR_PAYMENT_LAMBDA_ENV_VAR_KEY_TUTORS_METADATA_TABLE_NAME,
+  IMPORTED_TUTOR_PAYMENT_LAMBDA_ENV_VAR_KEY_TUTORS_TABLE_NAME,
   SSM_GOOGLE_SHEETS_ID_DESCRIPTION,
   SSM_GOOGLE_SHEETS_ID_ID,
   SSM_GOOGLE_SHEETS_ID_NAME,
@@ -39,7 +49,9 @@ import {
   SSM_TUTOR_SALARY_RATE_ID,
   SSM_TUTOR_SALARY_RATE_NAME,
   STUDENT_PAYMENT_LAMBDA_ENTRY,
-  STUDENT_PAYMENT_LAMBDA_ENV_VAR_KEY_API_SECRETS_ARN, STUDENT_PAYMENT_LAMBDA_ENV_VAR_KEY_GOOGLE_SHEETS_SSM_NAME,
+  STUDENT_PAYMENT_LAMBDA_ENV_VAR_KEY_API_SECRETS_ARN,
+  STUDENT_PAYMENT_LAMBDA_ENV_VAR_KEY_DISCORD_SECRETS_ARN,
+  STUDENT_PAYMENT_LAMBDA_ENV_VAR_KEY_GOOGLE_SHEETS_SSM_NAME,
   STUDENT_PAYMENT_LAMBDA_ENV_VAR_KEY_PAYMENT_INFO_URL_SSM_NAME,
   STUDENT_PAYMENT_LAMBDA_ENV_VAR_KEY_PHONE_ENABLED_COLUMNS_SSM_NAME,
   STUDENT_PAYMENT_LAMBDA_ENV_VAR_KEY_STUDENT_PAYMENT_TABLE_NAME,
@@ -59,7 +71,9 @@ import {
   STUDENT_REMINDERS_EVENTBRIDGE_RULE_SCHEDULE_EXPRESSION_MINUTE,
   STUDENT_REMINDERS_EVENTBRIDGE_RULE_SCHEDULE_EXPRESSION_WEEKDAY,
   TUTOR_PAYMENT_LAMBDA_ENTRY,
-  TUTOR_PAYMENT_LAMBDA_ENV_VAR_KEY_API_SECRETS_ARN, TUTOR_PAYMENT_LAMBDA_ENV_VAR_KEY_GOOGLE_SHEETS_SSM_NAME,
+  TUTOR_PAYMENT_LAMBDA_ENV_VAR_KEY_API_SECRETS_ARN,
+  TUTOR_PAYMENT_LAMBDA_ENV_VAR_KEY_DISCORD_SECRETS_ARN,
+  TUTOR_PAYMENT_LAMBDA_ENV_VAR_KEY_GOOGLE_SHEETS_SSM_NAME,
   TUTOR_PAYMENT_LAMBDA_ENV_VAR_KEY_PHONE_ENABLED_COLUMNS_SSM_NAME,
   TUTOR_PAYMENT_LAMBDA_ENV_VAR_KEY_TUTOR_PAYMENT_TABLE_NAME,
   TUTOR_PAYMENT_LAMBDA_ENV_VAR_KEY_TUTOR_SALARY_RATE_SSM_NAME,
@@ -80,10 +94,26 @@ import {
   TUTOR_REMINDERS_EVENTBRIDGE_RULE_SCHEDULE_EXPRESSION_MINUTE,
   TUTOR_REMINDERS_EVENTBRIDGE_RULE_SCHEDULE_EXPRESSION_MONTH
 } from "../config/constants";
+import {aws_dynamodb, aws_iam} from "aws-cdk-lib";
 
 export class MathPracsPaymentRemindersStack extends cdk.Stack {
   constructor(scope: Construct, id: string, props?: cdk.StackProps) {
     super(scope, id, props);
+
+    // Import resources from other stacks
+    const importedSessionsTableArn = cdk.Fn.importValue('MathPracs-SessionsTable-Arn');
+    const importedStudentsV2TableArn = cdk.Fn.importValue('MathPracs-StudentsV2Table-Arn');
+    const importedStudentsMetadataV2TableArn = cdk.Fn.importValue('MathPracs-StudentsMetadataV2Table-Arn');
+    const importedTutorsV2TableArn = cdk.Fn.importValue('MathPracs-TutorsV2Table-Arn');
+    const importedTutorsMetadataV2TableArn = cdk.Fn.importValue('MathPracs-TutorsMetadataV2Table-Arn');
+    const importedDiscordApiSecretsArn = cdk.Fn.importValue('MathPracs-DiscordCredentials-Arn');
+
+    // Lookup tables and extract their names
+    const importedSessionsTableName = aws_dynamodb.Table.fromTableArn(this, 'SessionsTableName', importedSessionsTableArn).tableName;
+    const importedStudentsV2TableName = aws_dynamodb.Table.fromTableArn(this, 'StudentsV2TableName', importedStudentsV2TableArn).tableName;
+    const importedStudentsMetadataV2TableName = aws_dynamodb.Table.fromTableArn(this, 'StudentsMetadataV2TableName', importedStudentsMetadataV2TableArn).tableName;
+    const importedTutorsV2TableName = aws_dynamodb.Table.fromTableArn(this, 'TutorsV2TableName', importedTutorsV2TableArn).tableName;
+    const importedTutorsMetadataV2TableName = aws_dynamodb.Table.fromTableArn(this, 'TutorsMetadataV2TableName', importedTutorsMetadataV2TableArn).tableName;
 
     // DynamoDB Tables
     const studentPaymentTable = new dynamodb.Table(this, STUDENT_PAYMENT_TABLE_ID, {
@@ -154,9 +184,13 @@ export class MathPracsPaymentRemindersStack extends cdk.Stack {
     });
     studentPaymentLambda.addEnvironment(STUDENT_PAYMENT_LAMBDA_ENV_VAR_KEY_STUDENT_PAYMENT_TABLE_NAME, studentPaymentTable.tableName)
     studentPaymentLambda.addEnvironment(STUDENT_PAYMENT_LAMBDA_ENV_VAR_KEY_API_SECRETS_ARN, apiSecrets.secretArn)
+    studentPaymentLambda.addEnvironment(STUDENT_PAYMENT_LAMBDA_ENV_VAR_KEY_DISCORD_SECRETS_ARN, importedDiscordApiSecretsArn)
     studentPaymentLambda.addEnvironment(STUDENT_PAYMENT_LAMBDA_ENV_VAR_KEY_GOOGLE_SHEETS_SSM_NAME, googleSheetsIdParam.parameterName)
     studentPaymentLambda.addEnvironment(STUDENT_PAYMENT_LAMBDA_ENV_VAR_KEY_PAYMENT_INFO_URL_SSM_NAME, paymentInfoUrlParam.parameterName)
     studentPaymentLambda.addEnvironment(STUDENT_PAYMENT_LAMBDA_ENV_VAR_KEY_PHONE_ENABLED_COLUMNS_SSM_NAME, phoneEnabledColumnsParam.parameterName)
+    studentPaymentLambda.addEnvironment(IMPORTED_STUDENT_PAYMENT_LAMBDA_ENV_VAR_KEY_SESSIONS_TABLE_NAME, importedSessionsTableName);
+    studentPaymentLambda.addEnvironment(IMPORTED_STUDENT_PAYMENT_LAMBDA_ENV_VAR_KEY_STUDENTS_TABLE_NAME, importedStudentsV2TableName);
+    studentPaymentLambda.addEnvironment(IMPORTED_STUDENT_PAYMENT_LAMBDA_ENV_VAR_KEY_STUDENTS_METADATA_TABLE_NAME, importedStudentsMetadataV2TableName);
 
     // Tutor Payment Reminder Lambda
     const tutorPaymentLambda = new python.PythonFunction(this, TUTOR_PAYMENT_LAMBDA_ID, {
@@ -172,6 +206,12 @@ export class MathPracsPaymentRemindersStack extends cdk.Stack {
     tutorPaymentLambda.addEnvironment(TUTOR_PAYMENT_LAMBDA_ENV_VAR_KEY_GOOGLE_SHEETS_SSM_NAME, googleSheetsIdParam.parameterName)
     tutorPaymentLambda.addEnvironment(TUTOR_PAYMENT_LAMBDA_ENV_VAR_KEY_PHONE_ENABLED_COLUMNS_SSM_NAME, phoneEnabledColumnsParam.parameterName)
     tutorPaymentLambda.addEnvironment(TUTOR_PAYMENT_LAMBDA_ENV_VAR_KEY_TUTOR_SALARY_RATE_SSM_NAME, tutorSalaryRateParam.parameterName)
+    tutorPaymentLambda.addEnvironment(IMPORTED_TUTOR_PAYMENT_LAMBDA_ENV_VAR_KEY_SESSIONS_TABLE_NAME, importedSessionsTableName);
+    tutorPaymentLambda.addEnvironment(IMPORTED_TUTOR_PAYMENT_LAMBDA_ENV_VAR_KEY_STUDENTS_TABLE_NAME, importedStudentsV2TableName);
+    tutorPaymentLambda.addEnvironment(IMPORTED_TUTOR_PAYMENT_LAMBDA_ENV_VAR_KEY_STUDENTS_METADATA_TABLE_NAME, importedStudentsMetadataV2TableName);
+    tutorPaymentLambda.addEnvironment(IMPORTED_TUTOR_PAYMENT_LAMBDA_ENV_VAR_KEY_TUTORS_TABLE_NAME, importedTutorsV2TableName);
+    tutorPaymentLambda.addEnvironment(IMPORTED_TUTOR_PAYMENT_LAMBDA_ENV_VAR_KEY_TUTORS_METADATA_TABLE_NAME, importedTutorsMetadataV2TableName);
+    tutorPaymentLambda.addEnvironment(IMPORTED_TUTOR_PAYMENT_LAMBDA_ENV_VAR_KEY_DISCORD_API_SECRETS_ARN, importedDiscordApiSecretsArn);
 
     // Grant Lambda permissions
     studentPaymentTable.grantReadWriteData(studentPaymentLambda);
@@ -209,6 +249,33 @@ export class MathPracsPaymentRemindersStack extends cdk.Stack {
     });
 
     tutorRemindersScheduleRule.addTarget(new targets.LambdaFunction(tutorPaymentLambda));
+
+    // Grant read access to imported DDB tables -- unsure if grant* helpers can be used on tables looked up by ARN
+    studentPaymentLambda.addToRolePolicy(new aws_iam.PolicyStatement({
+      actions: ['dynamodb:Scan', 'dynamodb:GetItem', 'dynamodb:Query'],
+      resources: [
+          importedSessionsTableArn,
+          importedStudentsV2TableArn,
+          importedStudentsMetadataV2TableArn
+      ]
+    }));
+
+    tutorPaymentLambda.addToRolePolicy(new aws_iam.PolicyStatement({
+      actions: ['dynamodb:Scan', 'dynamodb:GetItem', 'dynamodb:Query'],
+      resources: [
+          importedSessionsTableArn,
+          importedStudentsV2TableArn,
+          importedStudentsMetadataV2TableArn,
+          importedTutorsV2TableArn,
+          importedTutorsMetadataV2TableArn
+      ]
+    }));
+
+    // Grant read access to secrets
+    tutorPaymentLambda.addToRolePolicy(new aws_iam.PolicyStatement({
+      actions: ['secretsmanager:GetSecretValue'],
+      resources: [importedDiscordApiSecretsArn]
+    }));
 
     // Outputs
     new cdk.CfnOutput(this, CFN_OUTPUT_STUDENT_PAYMENT_TABLE_ID, {
