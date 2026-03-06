@@ -29,6 +29,7 @@ import {
   IMPORTED_STUDENT_PAYMENT_LAMBDA_ENV_VAR_KEY_SESSIONS_TABLE_NAME,
   IMPORTED_STUDENT_PAYMENT_LAMBDA_ENV_VAR_KEY_STUDENTS_METADATA_TABLE_NAME,
   IMPORTED_STUDENT_PAYMENT_LAMBDA_ENV_VAR_KEY_STUDENTS_TABLE_NAME,
+  IMPORTED_STUDENT_PAYMENT_LAMBDA_ENV_VAR_KEY_TRANSACTIONS_TABLE_NAME,
   IMPORTED_TUTOR_PAYMENT_LAMBDA_ENV_VAR_KEY_DISCORD_API_SECRETS_ARN,
   IMPORTED_TUTOR_PAYMENT_LAMBDA_ENV_VAR_KEY_SESSIONS_TABLE_NAME,
   IMPORTED_TUTOR_PAYMENT_LAMBDA_ENV_VAR_KEY_STUDENTS_METADATA_TABLE_NAME,
@@ -72,14 +73,12 @@ import {
   STUDENT_REMINDERS_EVENTBRIDGE_RULE_SCHEDULE_EXPRESSION_WEEKDAY,
   TUTOR_PAYMENT_LAMBDA_ENTRY,
   TUTOR_PAYMENT_LAMBDA_ENV_VAR_KEY_API_SECRETS_ARN,
-  TUTOR_PAYMENT_LAMBDA_ENV_VAR_KEY_DISCORD_SECRETS_ARN,
   TUTOR_PAYMENT_LAMBDA_ENV_VAR_KEY_GOOGLE_SHEETS_SSM_NAME,
   TUTOR_PAYMENT_LAMBDA_ENV_VAR_KEY_PHONE_ENABLED_COLUMNS_SSM_NAME,
   TUTOR_PAYMENT_LAMBDA_ENV_VAR_KEY_TUTOR_PAYMENT_TABLE_NAME,
   TUTOR_PAYMENT_LAMBDA_ENV_VAR_KEY_TUTOR_SALARY_RATE_SSM_NAME,
   TUTOR_PAYMENT_LAMBDA_HANDLER,
   TUTOR_PAYMENT_LAMBDA_ID,
-  TUTOR_PAYMENT_LAMBDA_INDEX,
   TUTOR_PAYMENT_LAMBDA_MEMORY_SIZE,
   TUTOR_PAYMENT_LAMBDA_NAME,
   TUTOR_PAYMENT_LAMBDA_RUNTIME,
@@ -106,6 +105,7 @@ export class MathPracsPaymentRemindersStack extends cdk.Stack {
     const importedStudentsMetadataV2TableArn = cdk.Fn.importValue('MathPracs-StudentsMetadataV2Table-Arn');
     const importedTutorsV2TableArn = cdk.Fn.importValue('MathPracs-TutorsV2Table-Arn');
     const importedTutorsMetadataV2TableArn = cdk.Fn.importValue('MathPracs-TutorsMetadataV2Table-Arn');
+    const importedTransactionsTableArn = cdk.Fn.importValue('MathPracs-TransactionsTable-Arn');
     const importedDiscordApiSecretsArn = cdk.Fn.importValue('MathPracs-DiscordCredentials-Arn');
 
     // Lookup tables and extract their names
@@ -114,6 +114,7 @@ export class MathPracsPaymentRemindersStack extends cdk.Stack {
     const importedStudentsMetadataV2TableName = aws_dynamodb.Table.fromTableArn(this, 'StudentsMetadataV2TableName', importedStudentsMetadataV2TableArn).tableName;
     const importedTutorsV2TableName = aws_dynamodb.Table.fromTableArn(this, 'TutorsV2TableName', importedTutorsV2TableArn).tableName;
     const importedTutorsMetadataV2TableName = aws_dynamodb.Table.fromTableArn(this, 'TutorsMetadataV2TableName', importedTutorsMetadataV2TableArn).tableName;
+    const importedTransactionsTableName = aws_dynamodb.Table.fromTableArn(this, 'TransactionsTableName', importedTransactionsTableArn).tableName;
 
     // DynamoDB Tables
     const studentPaymentTable = new dynamodb.Table(this, STUDENT_PAYMENT_TABLE_ID, {
@@ -191,6 +192,7 @@ export class MathPracsPaymentRemindersStack extends cdk.Stack {
     studentPaymentLambda.addEnvironment(IMPORTED_STUDENT_PAYMENT_LAMBDA_ENV_VAR_KEY_SESSIONS_TABLE_NAME, importedSessionsTableName);
     studentPaymentLambda.addEnvironment(IMPORTED_STUDENT_PAYMENT_LAMBDA_ENV_VAR_KEY_STUDENTS_TABLE_NAME, importedStudentsV2TableName);
     studentPaymentLambda.addEnvironment(IMPORTED_STUDENT_PAYMENT_LAMBDA_ENV_VAR_KEY_STUDENTS_METADATA_TABLE_NAME, importedStudentsMetadataV2TableName);
+    studentPaymentLambda.addEnvironment(IMPORTED_STUDENT_PAYMENT_LAMBDA_ENV_VAR_KEY_TRANSACTIONS_TABLE_NAME, importedTransactionsTableName);
 
     // Tutor Payment Reminder Lambda
     const tutorPaymentLambda = new python.PythonFunction(this, TUTOR_PAYMENT_LAMBDA_ID, {
@@ -255,8 +257,27 @@ export class MathPracsPaymentRemindersStack extends cdk.Stack {
       actions: ['dynamodb:Scan', 'dynamodb:GetItem', 'dynamodb:Query'],
       resources: [
           importedSessionsTableArn,
-          importedStudentsV2TableArn,
           importedStudentsMetadataV2TableArn
+      ]
+    }));
+
+    // Grant read + write access to imported DDB tables -- unsure if grant* helpers can be used on tables looked up by ARN
+    studentPaymentLambda.addToRolePolicy(new aws_iam.PolicyStatement({
+      actions: [
+        'dynamodb:Scan', 'dynamodb:GetItem', 'dynamodb:Query', 'dynamodb:ConditionCheckItem', 'dynamodb:UpdateItem'
+      ],
+      resources: [
+          importedStudentsV2TableArn
+      ]
+    }));
+
+    studentPaymentLambda.addToRolePolicy(new aws_iam.PolicyStatement({
+      actions: [
+        'dynamodb:Scan', 'dynamodb:GetItem', 'dynamodb:Query', 'dynamodb:ConditionCheckItem',
+        'dynamodb:PutItem', 'dynamodb:UpdateItem', 'dynamodb:DeleteItem', 'dynamodb:BatchWriteItem'
+      ],
+      resources: [
+        importedTransactionsTableArn
       ]
     }));
 
