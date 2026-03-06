@@ -272,6 +272,11 @@ export class MathPracsPaymentRemindersStack extends cdk.Stack {
     }));
 
     // Grant read access to secrets
+    studentPaymentLambda.addToRolePolicy(new aws_iam.PolicyStatement({
+      actions: ['secretsmanager:GetSecretValue'],
+      resources: [importedDiscordApiSecretsArn]
+    }));
+
     tutorPaymentLambda.addToRolePolicy(new aws_iam.PolicyStatement({
       actions: ['secretsmanager:GetSecretValue'],
       resources: [importedDiscordApiSecretsArn]
