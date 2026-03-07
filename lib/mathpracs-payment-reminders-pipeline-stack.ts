@@ -1,4 +1,5 @@
 import * as cdk from 'aws-cdk-lib';
+import * as codepipeline from 'aws-cdk-lib/aws-codepipeline';
 import * as ssm from 'aws-cdk-lib/aws-ssm';
 import { Construct } from 'constructs';
 import { CodePipeline, CodePipelineSource, ShellStep } from 'aws-cdk-lib/pipelines';
@@ -24,6 +25,7 @@ export class MathPracsPaymentRemindersPipelineStack extends cdk.Stack {
 
     const pipeline = new CodePipeline(this, 'Pipeline', {
       pipelineName: 'MathPracsPaymentRemindersPipeline',
+      pipelineType: codepipeline.PipelineType.V2,
       synth: new ShellStep('Synth', {
         input: cdkSource,
         additionalInputs: {

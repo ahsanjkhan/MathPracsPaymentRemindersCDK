@@ -5,6 +5,8 @@ import { MathPracsPaymentRemindersStack } from './mathpracs-payment-reminders-st
 export class MathPracsPaymentRemindersStage extends cdk.Stage {
   constructor(scope: Construct, id: string, props?: cdk.StageProps) {
     super(scope, id, props);
-    new MathPracsPaymentRemindersStack(this, 'MathPracsPaymentRemindersStack');
+    new MathPracsPaymentRemindersStack(this, 'MathPracsPaymentRemindersStack', {
+      stackName: 'MathPracsPaymentRemindersStack',
+    });
   }
 }
