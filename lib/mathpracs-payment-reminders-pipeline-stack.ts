@@ -17,10 +17,12 @@ export class MathPracsPaymentRemindersPipelineStack extends cdk.Stack {
 
     const cdkSource = CodePipelineSource.connection(CDK_REPO, BRANCH, {
       connectionArn,
+      triggerOnPush: true,
     });
 
     const lambdaSource = CodePipelineSource.connection(LAMBDA_REPO, BRANCH, {
       connectionArn,
+      triggerOnPush: true,
     });
 
     const pipeline = new CodePipeline(this, 'Pipeline', {
