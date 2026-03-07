@@ -16,9 +16,9 @@ This uses the power of AWS Cloud Development Kit (CDK) to create the following i
 
 ### What Are The Components
 
-AWS Lambda, AWS DynamoDB, AWS EventBridge Scheduler, AWS SecretsManager, Google Calendar API, Google Sheets API, Twilio API.
+AWS CodePipeline, AWS Lambda, AWS DynamoDB, AWS EventBridge Scheduler, AWS SecretsManager, Google Calendar API, Google Sheets API, Twilio API.
 
-### How To Deploy
+### How To Deploy -- Outdated since CodePipeline Integration
 
 ### Prerequisites
 
