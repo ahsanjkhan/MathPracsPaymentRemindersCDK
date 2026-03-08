@@ -7,7 +7,7 @@ import { MathPracsPaymentRemindersStage } from './mathpracs-payment-reminders-st
 
 const CDK_REPO = 'ahsanjkhan/MathPracsPaymentRemindersCDK';
 const LAMBDA_REPO = 'ahsanjkhan/MathPracsPaymentRemindersLambda';
-const BRANCH = 'main';
+const MAIN_BRANCH = 'main';
 
 export class MathPracsPaymentRemindersPipelineStack extends cdk.Stack {
   constructor(scope: Construct, id: string, props?: cdk.StackProps) {
@@ -15,12 +15,12 @@ export class MathPracsPaymentRemindersPipelineStack extends cdk.Stack {
 
     const connectionArn = ssm.StringParameter.valueForStringParameter(this, '/mathpracs/github-connection-arn');
 
-    const cdkSource = CodePipelineSource.connection(CDK_REPO, BRANCH, {
+    const cdkSource = CodePipelineSource.connection(CDK_REPO, MAIN_BRANCH, {
       connectionArn,
       triggerOnPush: true,
     });
 
-    const lambdaSource = CodePipelineSource.connection(LAMBDA_REPO, BRANCH, {
+    const lambdaSource = CodePipelineSource.connection(LAMBDA_REPO, MAIN_BRANCH, {
       connectionArn,
       triggerOnPush: true,
     });
