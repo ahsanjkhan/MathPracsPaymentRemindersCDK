@@ -4,13 +4,10 @@ import * as dynamodb from 'aws-cdk-lib/aws-dynamodb';
 import * as events from 'aws-cdk-lib/aws-events';
 import * as targets from 'aws-cdk-lib/aws-events-targets';
 import * as secretsmanager from 'aws-cdk-lib/aws-secretsmanager';
-import * as ssm from 'aws-cdk-lib/aws-ssm';
 import { Construct } from 'constructs';
 import {
   API_CREDENTIALS_SECRET_DESCRIPTION,
   API_CREDENTIALS_SECRET_ID,
-  API_CREDENTIALS_SECRET_KEY_GOOGLE_OAUTH,
-  API_CREDENTIALS_SECRET_KEY_GOOGLE_SHEETS,
   API_CREDENTIALS_SECRET_KEY_TWILIO_PHONE_NUMBER,
   API_CREDENTIALS_SECRET_KEY_TWILIO_SID,
   API_CREDENTIALS_SECRET_KEY_TWILIO_TOKEN,
@@ -36,25 +33,9 @@ import {
   IMPORTED_TUTOR_PAYMENT_LAMBDA_ENV_VAR_KEY_STUDENTS_TABLE_NAME,
   IMPORTED_TUTOR_PAYMENT_LAMBDA_ENV_VAR_KEY_TUTORS_METADATA_TABLE_NAME,
   IMPORTED_TUTOR_PAYMENT_LAMBDA_ENV_VAR_KEY_TUTORS_TABLE_NAME,
-  SSM_GOOGLE_SHEETS_ID_DESCRIPTION,
-  SSM_GOOGLE_SHEETS_ID_ID,
-  SSM_GOOGLE_SHEETS_ID_NAME,
-  SSM_PAYMENT_INFO_URL_DESCRIPTION,
-  SSM_PAYMENT_INFO_URL_ID,
-  SSM_PAYMENT_INFO_URL_NAME,
-  SSM_PHONE_ENABLED_COLUMNS_DESCRIPTION,
-  SSM_PHONE_ENABLED_COLUMNS_ID,
-  SSM_PHONE_ENABLED_COLUMNS_NAME,
-  SSM_PLACEHOLDER,
-  SSM_TUTOR_SALARY_RATE_DESCRIPTION,
-  SSM_TUTOR_SALARY_RATE_ID,
-  SSM_TUTOR_SALARY_RATE_NAME,
   STUDENT_PAYMENT_LAMBDA_ENTRY,
   STUDENT_PAYMENT_LAMBDA_ENV_VAR_KEY_API_SECRETS_ARN,
   STUDENT_PAYMENT_LAMBDA_ENV_VAR_KEY_DISCORD_SECRETS_ARN,
-  STUDENT_PAYMENT_LAMBDA_ENV_VAR_KEY_GOOGLE_SHEETS_SSM_NAME,
-  STUDENT_PAYMENT_LAMBDA_ENV_VAR_KEY_PAYMENT_INFO_URL_SSM_NAME,
-  STUDENT_PAYMENT_LAMBDA_ENV_VAR_KEY_PHONE_ENABLED_COLUMNS_SSM_NAME,
   STUDENT_PAYMENT_LAMBDA_ENV_VAR_KEY_STUDENT_PAYMENT_TABLE_NAME,
   STUDENT_PAYMENT_LAMBDA_HANDLER,
   STUDENT_PAYMENT_LAMBDA_ID,
@@ -73,10 +54,7 @@ import {
   STUDENT_REMINDERS_EVENTBRIDGE_RULE_SCHEDULE_EXPRESSION_WEEKDAY,
   TUTOR_PAYMENT_LAMBDA_ENTRY,
   TUTOR_PAYMENT_LAMBDA_ENV_VAR_KEY_API_SECRETS_ARN,
-  TUTOR_PAYMENT_LAMBDA_ENV_VAR_KEY_GOOGLE_SHEETS_SSM_NAME,
-  TUTOR_PAYMENT_LAMBDA_ENV_VAR_KEY_PHONE_ENABLED_COLUMNS_SSM_NAME,
   TUTOR_PAYMENT_LAMBDA_ENV_VAR_KEY_TUTOR_PAYMENT_TABLE_NAME,
-  TUTOR_PAYMENT_LAMBDA_ENV_VAR_KEY_TUTOR_SALARY_RATE_SSM_NAME,
   TUTOR_PAYMENT_LAMBDA_HANDLER,
   TUTOR_PAYMENT_LAMBDA_ID,
   TUTOR_PAYMENT_LAMBDA_MEMORY_SIZE,
@@ -137,8 +115,6 @@ export class MathPracsPaymentRemindersStack extends cdk.Stack {
       description: API_CREDENTIALS_SECRET_DESCRIPTION,
       generateSecretString: {
         secretStringTemplate: JSON.stringify({
-          [API_CREDENTIALS_SECRET_KEY_GOOGLE_OAUTH]: '',
-          [API_CREDENTIALS_SECRET_KEY_GOOGLE_SHEETS]: '',
           [API_CREDENTIALS_SECRET_KEY_TWILIO_SID]: '',
           [API_CREDENTIALS_SECRET_KEY_TWILIO_TOKEN]: '',
           [API_CREDENTIALS_SECRET_KEY_TWILIO_PHONE_NUMBER]: ''
@@ -146,31 +122,6 @@ export class MathPracsPaymentRemindersStack extends cdk.Stack {
         generateStringKey: API_CREDENTIALS_SECRET_PLACEHOLDER,
         excludeCharacters: '"@/\\'
       }
-    });
-
-    // SSM Parameters
-    const googleSheetsIdParam = new ssm.StringParameter(this, SSM_GOOGLE_SHEETS_ID_ID, {
-      parameterName: SSM_GOOGLE_SHEETS_ID_NAME,
-      stringValue: SSM_PLACEHOLDER,
-      description: SSM_GOOGLE_SHEETS_ID_DESCRIPTION
-    });
-
-    const paymentInfoUrlParam = new ssm.StringParameter(this, SSM_PAYMENT_INFO_URL_ID, {
-      parameterName: SSM_PAYMENT_INFO_URL_NAME,
-      stringValue: SSM_PLACEHOLDER,
-      description: SSM_PAYMENT_INFO_URL_DESCRIPTION
-    });
-
-    const phoneEnabledColumnsParam = new ssm.StringListParameter(this, SSM_PHONE_ENABLED_COLUMNS_ID, {
-      parameterName: SSM_PHONE_ENABLED_COLUMNS_NAME,
-      stringListValue: [SSM_PLACEHOLDER],
-      description: SSM_PHONE_ENABLED_COLUMNS_DESCRIPTION
-    });
-
-    const tutorSalaryRateParam = new ssm.StringParameter(this, SSM_TUTOR_SALARY_RATE_ID, {
-      parameterName: SSM_TUTOR_SALARY_RATE_NAME,
-      stringValue: SSM_PLACEHOLDER,
-      description: SSM_TUTOR_SALARY_RATE_DESCRIPTION
     });
 
     // Student Payment Reminder Lambda
@@ -186,9 +137,6 @@ export class MathPracsPaymentRemindersStack extends cdk.Stack {
     studentPaymentLambda.addEnvironment(STUDENT_PAYMENT_LAMBDA_ENV_VAR_KEY_STUDENT_PAYMENT_TABLE_NAME, studentPaymentTable.tableName)
     studentPaymentLambda.addEnvironment(STUDENT_PAYMENT_LAMBDA_ENV_VAR_KEY_API_SECRETS_ARN, apiSecrets.secretArn)
     studentPaymentLambda.addEnvironment(STUDENT_PAYMENT_LAMBDA_ENV_VAR_KEY_DISCORD_SECRETS_ARN, importedDiscordApiSecretsArn)
-    studentPaymentLambda.addEnvironment(STUDENT_PAYMENT_LAMBDA_ENV_VAR_KEY_GOOGLE_SHEETS_SSM_NAME, googleSheetsIdParam.parameterName)
-    studentPaymentLambda.addEnvironment(STUDENT_PAYMENT_LAMBDA_ENV_VAR_KEY_PAYMENT_INFO_URL_SSM_NAME, paymentInfoUrlParam.parameterName)
-    studentPaymentLambda.addEnvironment(STUDENT_PAYMENT_LAMBDA_ENV_VAR_KEY_PHONE_ENABLED_COLUMNS_SSM_NAME, phoneEnabledColumnsParam.parameterName)
     studentPaymentLambda.addEnvironment(IMPORTED_STUDENT_PAYMENT_LAMBDA_ENV_VAR_KEY_SESSIONS_TABLE_NAME, importedSessionsTableName);
     studentPaymentLambda.addEnvironment(IMPORTED_STUDENT_PAYMENT_LAMBDA_ENV_VAR_KEY_STUDENTS_TABLE_NAME, importedStudentsV2TableName);
     studentPaymentLambda.addEnvironment(IMPORTED_STUDENT_PAYMENT_LAMBDA_ENV_VAR_KEY_STUDENTS_METADATA_TABLE_NAME, importedStudentsMetadataV2TableName);
@@ -205,9 +153,6 @@ export class MathPracsPaymentRemindersStack extends cdk.Stack {
     });
     tutorPaymentLambda.addEnvironment(TUTOR_PAYMENT_LAMBDA_ENV_VAR_KEY_TUTOR_PAYMENT_TABLE_NAME, tutorPaymentTable.tableName)
     tutorPaymentLambda.addEnvironment(TUTOR_PAYMENT_LAMBDA_ENV_VAR_KEY_API_SECRETS_ARN, apiSecrets.secretArn)
-    tutorPaymentLambda.addEnvironment(TUTOR_PAYMENT_LAMBDA_ENV_VAR_KEY_GOOGLE_SHEETS_SSM_NAME, googleSheetsIdParam.parameterName)
-    tutorPaymentLambda.addEnvironment(TUTOR_PAYMENT_LAMBDA_ENV_VAR_KEY_PHONE_ENABLED_COLUMNS_SSM_NAME, phoneEnabledColumnsParam.parameterName)
-    tutorPaymentLambda.addEnvironment(TUTOR_PAYMENT_LAMBDA_ENV_VAR_KEY_TUTOR_SALARY_RATE_SSM_NAME, tutorSalaryRateParam.parameterName)
     tutorPaymentLambda.addEnvironment(IMPORTED_TUTOR_PAYMENT_LAMBDA_ENV_VAR_KEY_SESSIONS_TABLE_NAME, importedSessionsTableName);
     tutorPaymentLambda.addEnvironment(IMPORTED_TUTOR_PAYMENT_LAMBDA_ENV_VAR_KEY_STUDENTS_TABLE_NAME, importedStudentsV2TableName);
     tutorPaymentLambda.addEnvironment(IMPORTED_TUTOR_PAYMENT_LAMBDA_ENV_VAR_KEY_STUDENTS_METADATA_TABLE_NAME, importedStudentsMetadataV2TableName);
@@ -220,12 +165,6 @@ export class MathPracsPaymentRemindersStack extends cdk.Stack {
     tutorPaymentTable.grantReadWriteData(tutorPaymentLambda);
     apiSecrets.grantRead(studentPaymentLambda);
     apiSecrets.grantRead(tutorPaymentLambda);
-    googleSheetsIdParam.grantRead(studentPaymentLambda);
-    googleSheetsIdParam.grantRead(tutorPaymentLambda);
-    paymentInfoUrlParam.grantRead(studentPaymentLambda);
-    phoneEnabledColumnsParam.grantRead(studentPaymentLambda);
-    phoneEnabledColumnsParam.grantRead(tutorPaymentLambda);
-    tutorSalaryRateParam.grantRead(tutorPaymentLambda);
 
     const studentRemindersScheduleRule = new events.Rule(this, STUDENT_REMINDERS_EVENTBRIDGE_RULE_ID, {
       ruleName: STUDENT_REMINDERS_EVENTBRIDGE_RULE_NAME,
