@@ -28,6 +28,7 @@ export class MathPracsPaymentRemindersPipelineStack extends cdk.Stack {
     const pipeline = new CodePipeline(this, 'Pipeline', {
       pipelineName: 'MathPracsPaymentRemindersPipeline',
       pipelineType: codepipeline.PipelineType.V2,
+      crossAccountKeys: true,
       synth: new ShellStep('Synth', {
         input: cdkSource,
         additionalInputs: {
@@ -40,11 +41,12 @@ export class MathPracsPaymentRemindersPipelineStack extends cdk.Stack {
       }),
     });
 
+    pipeline.addStage(new MathPracsPaymentRemindersStage(this, 'Beta', {
+      env: { account: '655383751455', region: 'us-east-1' },
+    }));
+
     pipeline.addStage(new MathPracsPaymentRemindersStage(this, 'Prod', {
-      env: {
-        account: process.env.CDK_DEFAULT_ACCOUNT,
-        region: process.env.CDK_DEFAULT_REGION,
-      },
+      env: { account: '786802935034', region: 'us-east-1' },
     }));
   }
 }
