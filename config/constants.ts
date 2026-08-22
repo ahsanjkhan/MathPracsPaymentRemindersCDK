@@ -77,3 +77,45 @@ export const CFN_OUTPUT_TUTOR_LAMBDA_DESCRIPTION = 'Tutor payment reminders Lamb
 
 export const CFN_OUTPUT_API_CREDENTIALS_SECRETS_ID = 'SecretsArn';
 export const CFN_OUTPUT_API_CREDENTIALS_SECRETS_DESCRIPTION = 'Secrets Manager ARN for API credentials';
+
+// Alarm Notifier Lambda
+export const ALARM_NOTIFIER_LAMBDA_NAME = 'mathpracs-payment-reminders-alarm-notifier';
+export const ALARM_NOTIFIER_LAMBDA_ID = 'AlarmNotifierFunction';
+export const ALARM_NOTIFIER_LAMBDA_RUNTIME = lambda.Runtime.PYTHON_3_10;
+export const ALARM_NOTIFIER_LAMBDA_ENTRY = '../MathPracsPaymentRemindersLambda/alarm_notifier';
+export const ALARM_NOTIFIER_LAMBDA_INDEX = 'handler/lambda_function.py';
+export const ALARM_NOTIFIER_LAMBDA_HANDLER = 'lambda_handler';
+export const ALARM_NOTIFIER_LAMBDA_TIMEOUT = cdk.Duration.seconds(30);
+export const ALARM_NOTIFIER_LAMBDA_MEMORY_SIZE = 128;
+export const ALARM_NOTIFIER_LAMBDA_ENV_VAR_KEY_DISCORD_SECRETS_ARN = 'DISCORD_SECRETS_ARN';
+
+// SNS Topic
+export const ALARM_SNS_TOPIC_NAME = 'mathpracs-payment-reminders-alarms';
+export const ALARM_SNS_TOPIC_ID = 'PaymentRemindersAlarmTopic';
+
+// CloudWatch Alarms
+export const METRICS_NAMESPACE = 'MathPracs/PaymentReminders';
+
+export const ALARM_STUDENT_INFO_DDB_ID = 'StudentInfoDDBCompositeAlarm';
+export const ALARM_STUDENT_INFO_DDB_NAME = 'mathpracs-payment-reminders-student-info-ddb-composite';
+export const ALARM_STUDENT_INFO_DDB_DESCRIPTION = 'Payment Reminders: student data lookup or update failure';
+
+export const ALARM_TUTOR_INFO_DDB_ID = 'TutorInfoDDBCompositeAlarm';
+export const ALARM_TUTOR_INFO_DDB_NAME = 'mathpracs-payment-reminders-tutor-info-ddb-composite';
+export const ALARM_TUTOR_INFO_DDB_DESCRIPTION = 'Payment Reminders: tutor data lookup failure';
+
+export const ALARM_PAYMENT_REMINDER_DDB_ID = 'PaymentReminderDDBCompositeAlarm';
+export const ALARM_PAYMENT_REMINDER_DDB_NAME = 'mathpracs-payment-reminders-ddb-composite';
+export const ALARM_PAYMENT_REMINDER_DDB_DESCRIPTION = 'Payment Reminders: reminder table or session scan failure';
+
+export const ALARM_TRANSACTIONS_DDB_ID = 'TransactionsDDBCompositeAlarm';
+export const ALARM_TRANSACTIONS_DDB_NAME = 'mathpracs-payment-reminders-transactions-ddb-composite';
+export const ALARM_TRANSACTIONS_DDB_DESCRIPTION = 'Payment Reminders: transaction write failure';
+
+export const ALARM_API_FAILURE_ID = 'APIFailureCompositeAlarm';
+export const ALARM_API_FAILURE_NAME = 'mathpracs-payment-reminders-api-failure-composite';
+export const ALARM_API_FAILURE_DESCRIPTION = 'Payment Reminders: external API call failure';
+
+export const ALARM_UNKNOWN_FAILURES_ID = 'UnknownFailuresCompositeAlarm';
+export const ALARM_UNKNOWN_FAILURES_NAME = 'mathpracs-payment-reminders-unknown-failures-composite';
+export const ALARM_UNKNOWN_FAILURES_DESCRIPTION = 'Payment Reminders: unhandled exception in Lambda';

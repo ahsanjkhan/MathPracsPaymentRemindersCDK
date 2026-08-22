@@ -4,6 +4,11 @@ import * as dynamodb from 'aws-cdk-lib/aws-dynamodb';
 import * as events from 'aws-cdk-lib/aws-events';
 import * as targets from 'aws-cdk-lib/aws-events-targets';
 import * as secretsmanager from 'aws-cdk-lib/aws-secretsmanager';
+import * as sns from 'aws-cdk-lib/aws-sns';
+import * as sns_subscriptions from 'aws-cdk-lib/aws-sns-subscriptions';
+import * as sqs from 'aws-cdk-lib/aws-sqs';
+import * as cloudwatch from 'aws-cdk-lib/aws-cloudwatch';
+import * as cloudwatch_actions from 'aws-cdk-lib/aws-cloudwatch-actions';
 import { Construct } from 'constructs';
 import {
   API_CREDENTIALS_SECRET_DESCRIPTION,
@@ -69,7 +74,37 @@ import {
   TUTOR_REMINDERS_EVENTBRIDGE_RULE_SCHEDULE_EXPRESSION_DAY,
   TUTOR_REMINDERS_EVENTBRIDGE_RULE_SCHEDULE_EXPRESSION_HOUR,
   TUTOR_REMINDERS_EVENTBRIDGE_RULE_SCHEDULE_EXPRESSION_MINUTE,
-  TUTOR_REMINDERS_EVENTBRIDGE_RULE_SCHEDULE_EXPRESSION_MONTH
+  TUTOR_REMINDERS_EVENTBRIDGE_RULE_SCHEDULE_EXPRESSION_MONTH,
+  ALARM_NOTIFIER_LAMBDA_NAME,
+  ALARM_NOTIFIER_LAMBDA_ID,
+  ALARM_NOTIFIER_LAMBDA_RUNTIME,
+  ALARM_NOTIFIER_LAMBDA_ENTRY,
+  ALARM_NOTIFIER_LAMBDA_INDEX,
+  ALARM_NOTIFIER_LAMBDA_HANDLER,
+  ALARM_NOTIFIER_LAMBDA_TIMEOUT,
+  ALARM_NOTIFIER_LAMBDA_MEMORY_SIZE,
+  ALARM_NOTIFIER_LAMBDA_ENV_VAR_KEY_DISCORD_SECRETS_ARN,
+  ALARM_SNS_TOPIC_NAME,
+  ALARM_SNS_TOPIC_ID,
+  METRICS_NAMESPACE,
+  ALARM_STUDENT_INFO_DDB_ID,
+  ALARM_STUDENT_INFO_DDB_NAME,
+  ALARM_STUDENT_INFO_DDB_DESCRIPTION,
+  ALARM_TUTOR_INFO_DDB_ID,
+  ALARM_TUTOR_INFO_DDB_NAME,
+  ALARM_TUTOR_INFO_DDB_DESCRIPTION,
+  ALARM_PAYMENT_REMINDER_DDB_ID,
+  ALARM_PAYMENT_REMINDER_DDB_NAME,
+  ALARM_PAYMENT_REMINDER_DDB_DESCRIPTION,
+  ALARM_TRANSACTIONS_DDB_ID,
+  ALARM_TRANSACTIONS_DDB_NAME,
+  ALARM_TRANSACTIONS_DDB_DESCRIPTION,
+  ALARM_API_FAILURE_ID,
+  ALARM_API_FAILURE_NAME,
+  ALARM_API_FAILURE_DESCRIPTION,
+  ALARM_UNKNOWN_FAILURES_ID,
+  ALARM_UNKNOWN_FAILURES_NAME,
+  ALARM_UNKNOWN_FAILURES_DESCRIPTION,
 } from "../config/constants";
 import {aws_dynamodb, aws_iam} from "aws-cdk-lib";
 
@@ -241,6 +276,111 @@ export class MathPracsPaymentRemindersStack extends cdk.Stack {
       actions: ['secretsmanager:GetSecretValue'],
       resources: [importedDiscordApiSecretsArn]
     }));
+
+    // Grant CloudWatch PutMetricData to payment reminder Lambdas
+    studentPaymentLambda.addToRolePolicy(new aws_iam.PolicyStatement({
+      actions: ['cloudwatch:PutMetricData'],
+      resources: ['*'],
+      conditions: {
+        StringEquals: { 'cloudwatch:namespace': METRICS_NAMESPACE }
+      }
+    }));
+
+    tutorPaymentLambda.addToRolePolicy(new aws_iam.PolicyStatement({
+      actions: ['cloudwatch:PutMetricData'],
+      resources: ['*'],
+      conditions: {
+        StringEquals: { 'cloudwatch:namespace': METRICS_NAMESPACE }
+      }
+    }));
+
+    // SNS Topic for alarms
+    const alarmTopic = new sns.Topic(this, ALARM_SNS_TOPIC_ID, {
+      topicName: ALARM_SNS_TOPIC_NAME,
+    });
+
+    // Alarm Notifier Lambda
+    const alarmNotifierLambda = new python.PythonFunction(this, ALARM_NOTIFIER_LAMBDA_ID, {
+      functionName: ALARM_NOTIFIER_LAMBDA_NAME,
+      runtime: ALARM_NOTIFIER_LAMBDA_RUNTIME,
+      entry: ALARM_NOTIFIER_LAMBDA_ENTRY,
+      index: ALARM_NOTIFIER_LAMBDA_INDEX,
+      handler: ALARM_NOTIFIER_LAMBDA_HANDLER,
+      timeout: ALARM_NOTIFIER_LAMBDA_TIMEOUT,
+      memorySize: ALARM_NOTIFIER_LAMBDA_MEMORY_SIZE,
+    });
+
+    alarmNotifierLambda.addEnvironment(ALARM_NOTIFIER_LAMBDA_ENV_VAR_KEY_DISCORD_SECRETS_ARN, importedDiscordApiSecretsArn);
+
+    alarmNotifierLambda.addToRolePolicy(new aws_iam.PolicyStatement({
+      actions: ['secretsmanager:GetSecretValue'],
+      resources: [importedDiscordApiSecretsArn]
+    }));
+
+    const alarmNotifierDlq = new sqs.Queue(this, 'AlarmNotifierDLQ', {
+      queueName: 'mathpracs-payment-reminders-alarm-notifier-dlq',
+      retentionPeriod: cdk.Duration.days(14),
+    });
+
+    alarmTopic.addSubscription(new sns_subscriptions.LambdaSubscription(alarmNotifierLambda, {
+      deadLetterQueue: alarmNotifierDlq,
+    }));
+
+    // CloudWatch Alarms — per-dimension child alarms (no actions)
+    const childAlarmConfig: { metricName: string; reasons: string[]; namePrefix: string }[] = [
+      { metricName: 'StudentInfoDDB', reasons: ['MetadataScanException', 'StudentsScanException', 'MissingStudentName', 'StudentNotFound', 'MissingDiscordChannel', 'InvalidHourlyPricing', 'MissingHourlyPricing', 'MissingNoShowPricing', 'BalanceUpdateException'], namePrefix: 'student-info-ddb' },
+      { metricName: 'TutorInfoDDB', reasons: ['MetadataScanException', 'MissingTutorId', 'InvalidHourlyRate', 'MissingDisplayName', 'MissingTutorPaymentChannel'], namePrefix: 'tutor-info-ddb' },
+      { metricName: 'PaymentReminderDDB', reasons: ['SessionsScanException', 'GetReminderException', 'PutReminderException', 'UpdateProcessedDiscordException'], namePrefix: 'payment-reminder-ddb' },
+      { metricName: 'TransactionsDDB', reasons: ['PutTransactionException'], namePrefix: 'transactions-ddb' },
+      { metricName: 'APIFailure', reasons: ['DiscordSendFailed', 'TutorDiscordSendFailed'], namePrefix: 'api-failure' },
+      { metricName: 'UnknownFailures', reasons: ['UnhandledException'], namePrefix: 'unknown-failures' },
+    ];
+
+    const childAlarmsByCategory: Record<string, cloudwatch.Alarm[]> = {};
+
+    for (const config of childAlarmConfig) {
+      childAlarmsByCategory[config.metricName] = [];
+      for (const reason of config.reasons) {
+        const alarm = new cloudwatch.Alarm(this, `${config.metricName}-${reason}-Alarm`, {
+          alarmName: `mathpracs-payment-reminders-${config.namePrefix}-${reason}`,
+          alarmDescription: `Payment Reminders: ${config.metricName} - ${reason}`,
+          metric: new cloudwatch.Metric({
+            namespace: METRICS_NAMESPACE,
+            metricName: config.metricName,
+            dimensionsMap: { Reason: reason },
+            statistic: 'Sum',
+            period: cdk.Duration.minutes(1),
+          }),
+          threshold: 1,
+          evaluationPeriods: 1,
+          comparisonOperator: cloudwatch.ComparisonOperator.GREATER_THAN_OR_EQUAL_TO_THRESHOLD,
+          treatMissingData: cloudwatch.TreatMissingData.NOT_BREACHING,
+        });
+        childAlarmsByCategory[config.metricName].push(alarm);
+      }
+    }
+
+    // Composite parent alarms (with SNS action)
+    const compositeAlarmConfigs = [
+      { id: ALARM_STUDENT_INFO_DDB_ID, name: ALARM_STUDENT_INFO_DDB_NAME, description: ALARM_STUDENT_INFO_DDB_DESCRIPTION, metricName: 'StudentInfoDDB' },
+      { id: ALARM_TUTOR_INFO_DDB_ID, name: ALARM_TUTOR_INFO_DDB_NAME, description: ALARM_TUTOR_INFO_DDB_DESCRIPTION, metricName: 'TutorInfoDDB' },
+      { id: ALARM_PAYMENT_REMINDER_DDB_ID, name: ALARM_PAYMENT_REMINDER_DDB_NAME, description: ALARM_PAYMENT_REMINDER_DDB_DESCRIPTION, metricName: 'PaymentReminderDDB' },
+      { id: ALARM_TRANSACTIONS_DDB_ID, name: ALARM_TRANSACTIONS_DDB_NAME, description: ALARM_TRANSACTIONS_DDB_DESCRIPTION, metricName: 'TransactionsDDB' },
+      { id: ALARM_API_FAILURE_ID, name: ALARM_API_FAILURE_NAME, description: ALARM_API_FAILURE_DESCRIPTION, metricName: 'APIFailure' },
+      { id: ALARM_UNKNOWN_FAILURES_ID, name: ALARM_UNKNOWN_FAILURES_NAME, description: ALARM_UNKNOWN_FAILURES_DESCRIPTION, metricName: 'UnknownFailures' },
+    ];
+
+    for (const config of compositeAlarmConfigs) {
+      const children = childAlarmsByCategory[config.metricName];
+      const alarmRule = cloudwatch.AlarmRule.anyOf(...children);
+
+      const compositeAlarm = new cloudwatch.CompositeAlarm(this, config.id, {
+        compositeAlarmName: config.name,
+        alarmDescription: config.description,
+        alarmRule,
+      });
+      compositeAlarm.addAlarmAction(new cloudwatch_actions.SnsAction(alarmTopic));
+    }
 
     // Outputs
     new cdk.CfnOutput(this, CFN_OUTPUT_STUDENT_PAYMENT_TABLE_ID, {
