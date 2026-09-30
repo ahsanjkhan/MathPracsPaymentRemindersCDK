@@ -11,6 +11,35 @@ import * as cloudwatch from 'aws-cdk-lib/aws-cloudwatch';
 import * as cloudwatch_actions from 'aws-cdk-lib/aws-cloudwatch-actions';
 import { Construct } from 'constructs';
 import {
+  BUSINESS_PAYMENT_TABLE_NAME,
+  BUSINESS_PAYMENT_TABLE_ID,
+  BUSINESS_PAYMENT_LAMBDA_NAME,
+  BUSINESS_PAYMENT_LAMBDA_ID,
+  BUSINESS_PAYMENT_LAMBDA_RUNTIME,
+  BUSINESS_PAYMENT_LAMBDA_ENTRY,
+  BUSINESS_PAYMENT_LAMBDA_HANDLER,
+  BUSINESS_PAYMENT_LAMBDA_TIMEOUT,
+  BUSINESS_PAYMENT_LAMBDA_MEMORY_SIZE,
+  BUSINESS_PAYMENT_LAMBDA_ENV_VAR_KEY_BUSINESS_PAYMENT_TABLE_NAME,
+  IMPORTED_BUSINESS_PAYMENT_LAMBDA_ENV_VAR_KEY_TRANSACTIONS_TABLE_NAME,
+  IMPORTED_BUSINESS_PAYMENT_LAMBDA_ENV_VAR_KEY_TUTOR_TRANSACTIONS_TABLE_NAME,
+  IMPORTED_BUSINESS_PAYMENT_LAMBDA_ENV_VAR_KEY_TUTORS_TABLE_NAME,
+  IMPORTED_BUSINESS_PAYMENT_LAMBDA_ENV_VAR_KEY_BUSINESS_INTERNAL_DEBTS_TABLE_NAME,
+  IMPORTED_BUSINESS_PAYMENT_LAMBDA_ENV_VAR_KEY_DISCORD_API_SECRETS_ARN,
+  BUSINESS_REMINDERS_EVENTBRIDGE_RULE_NAME,
+  BUSINESS_REMINDERS_EVENTBRIDGE_RULE_ID,
+  BUSINESS_REMINDERS_EVENTBRIDGE_RULE_DESCRIPTION,
+  BUSINESS_REMINDERS_EVENTBRIDGE_RULE_SCHEDULE_EXPRESSION_MINUTE,
+  BUSINESS_REMINDERS_EVENTBRIDGE_RULE_SCHEDULE_EXPRESSION_HOUR,
+  BUSINESS_REMINDERS_EVENTBRIDGE_RULE_SCHEDULE_EXPRESSION_DAY,
+  BUSINESS_REMINDERS_EVENTBRIDGE_RULE_SCHEDULE_EXPRESSION_MONTH,
+  CFN_OUTPUT_BUSINESS_PAYMENT_TABLE_ID,
+  CFN_OUTPUT_BUSINESS_PAYMENT_TABLE_DESCRIPTION,
+  CFN_OUTPUT_BUSINESS_LAMBDA_ID,
+  CFN_OUTPUT_BUSINESS_LAMBDA_DESCRIPTION,
+  ALARM_BUSINESS_INTERNAL_DEBTS_DDB_ID,
+  ALARM_BUSINESS_INTERNAL_DEBTS_DDB_NAME,
+  ALARM_BUSINESS_INTERNAL_DEBTS_DDB_DESCRIPTION,
   API_CREDENTIALS_SECRET_DESCRIPTION,
   API_CREDENTIALS_SECRET_ID,
   API_CREDENTIALS_SECRET_KEY_TWILIO_PHONE_NUMBER,
@@ -33,6 +62,7 @@ import {
   IMPORTED_STUDENT_PAYMENT_LAMBDA_ENV_VAR_KEY_STUDENTS_TABLE_NAME,
   IMPORTED_STUDENT_PAYMENT_LAMBDA_ENV_VAR_KEY_TRANSACTIONS_TABLE_NAME,
   IMPORTED_TUTOR_PAYMENT_LAMBDA_ENV_VAR_KEY_DISCORD_API_SECRETS_ARN,
+  IMPORTED_TUTOR_PAYMENT_LAMBDA_ENV_VAR_KEY_TUTOR_TRANSACTIONS_TABLE_NAME,
   IMPORTED_TUTOR_PAYMENT_LAMBDA_ENV_VAR_KEY_SESSIONS_TABLE_NAME,
   IMPORTED_TUTOR_PAYMENT_LAMBDA_ENV_VAR_KEY_STUDENTS_METADATA_TABLE_NAME,
   IMPORTED_TUTOR_PAYMENT_LAMBDA_ENV_VAR_KEY_STUDENTS_TABLE_NAME,
@@ -99,6 +129,9 @@ import {
   ALARM_TRANSACTIONS_DDB_ID,
   ALARM_TRANSACTIONS_DDB_NAME,
   ALARM_TRANSACTIONS_DDB_DESCRIPTION,
+  ALARM_TUTOR_TRANSACTIONS_DDB_ID,
+  ALARM_TUTOR_TRANSACTIONS_DDB_NAME,
+  ALARM_TUTOR_TRANSACTIONS_DDB_DESCRIPTION,
   ALARM_API_FAILURE_ID,
   ALARM_API_FAILURE_NAME,
   ALARM_API_FAILURE_DESCRIPTION,
@@ -119,6 +152,8 @@ export class MathPracsPaymentRemindersStack extends cdk.Stack {
     const importedTutorsV2TableArn = cdk.Fn.importValue('MathPracs-TutorsV2Table-Arn');
     const importedTutorsMetadataV2TableArn = cdk.Fn.importValue('MathPracs-TutorsMetadataV2Table-Arn');
     const importedTransactionsTableArn = cdk.Fn.importValue('MathPracs-TransactionsTable-Arn');
+    const importedTutorTransactionsTableArn = cdk.Fn.importValue('MathPracs-TutorTransactionsTable-Arn');
+    const importedBusinessInternalDebtsTableArn = cdk.Fn.importValue('MathPracs-BusinessInternalDebtsTable-Arn');
     const importedDiscordApiSecretsArn = cdk.Fn.importValue('MathPracs-DiscordCredentials-Arn');
 
     // Lookup tables and extract their names
@@ -128,6 +163,8 @@ export class MathPracsPaymentRemindersStack extends cdk.Stack {
     const importedTutorsV2TableName = aws_dynamodb.Table.fromTableArn(this, 'TutorsV2TableName', importedTutorsV2TableArn).tableName;
     const importedTutorsMetadataV2TableName = aws_dynamodb.Table.fromTableArn(this, 'TutorsMetadataV2TableName', importedTutorsMetadataV2TableArn).tableName;
     const importedTransactionsTableName = aws_dynamodb.Table.fromTableArn(this, 'TransactionsTableName', importedTransactionsTableArn).tableName;
+    const importedTutorTransactionsTableName = aws_dynamodb.Table.fromTableArn(this, 'TutorTransactionsTableName', importedTutorTransactionsTableArn).tableName;
+    const importedBusinessInternalDebtsTableName = aws_dynamodb.Table.fromTableArn(this, 'BusinessInternalDebtsTableName', importedBusinessInternalDebtsTableArn).tableName;
 
     // DynamoDB Tables
     const studentPaymentTable = new dynamodb.Table(this, STUDENT_PAYMENT_TABLE_ID, {
@@ -139,6 +176,13 @@ export class MathPracsPaymentRemindersStack extends cdk.Stack {
 
     const tutorPaymentTable = new dynamodb.Table(this, TUTOR_PAYMENT_TABLE_ID, {
       tableName: TUTOR_PAYMENT_TABLE_NAME,
+      partitionKey: { name: 'uid', type: dynamodb.AttributeType.STRING },
+      billingMode: dynamodb.BillingMode.PAY_PER_REQUEST,
+      removalPolicy: cdk.RemovalPolicy.RETAIN,
+    });
+
+    const businessPaymentTable = new dynamodb.Table(this, BUSINESS_PAYMENT_TABLE_ID, {
+      tableName: BUSINESS_PAYMENT_TABLE_NAME,
       partitionKey: { name: 'uid', type: dynamodb.AttributeType.STRING },
       billingMode: dynamodb.BillingMode.PAY_PER_REQUEST,
       removalPolicy: cdk.RemovalPolicy.RETAIN,
@@ -194,10 +238,28 @@ export class MathPracsPaymentRemindersStack extends cdk.Stack {
     tutorPaymentLambda.addEnvironment(IMPORTED_TUTOR_PAYMENT_LAMBDA_ENV_VAR_KEY_TUTORS_TABLE_NAME, importedTutorsV2TableName);
     tutorPaymentLambda.addEnvironment(IMPORTED_TUTOR_PAYMENT_LAMBDA_ENV_VAR_KEY_TUTORS_METADATA_TABLE_NAME, importedTutorsMetadataV2TableName);
     tutorPaymentLambda.addEnvironment(IMPORTED_TUTOR_PAYMENT_LAMBDA_ENV_VAR_KEY_DISCORD_API_SECRETS_ARN, importedDiscordApiSecretsArn);
+    tutorPaymentLambda.addEnvironment(IMPORTED_TUTOR_PAYMENT_LAMBDA_ENV_VAR_KEY_TUTOR_TRANSACTIONS_TABLE_NAME, importedTutorTransactionsTableName);
+
+    // Business Payment Reminder Lambda
+    const businessPaymentLambda = new python.PythonFunction(this, BUSINESS_PAYMENT_LAMBDA_ID, {
+      functionName: BUSINESS_PAYMENT_LAMBDA_NAME,
+      runtime: BUSINESS_PAYMENT_LAMBDA_RUNTIME,
+      entry: BUSINESS_PAYMENT_LAMBDA_ENTRY,
+      handler: BUSINESS_PAYMENT_LAMBDA_HANDLER,
+      timeout: BUSINESS_PAYMENT_LAMBDA_TIMEOUT,
+      memorySize: BUSINESS_PAYMENT_LAMBDA_MEMORY_SIZE,
+    });
+    businessPaymentLambda.addEnvironment(BUSINESS_PAYMENT_LAMBDA_ENV_VAR_KEY_BUSINESS_PAYMENT_TABLE_NAME, businessPaymentTable.tableName);
+    businessPaymentLambda.addEnvironment(IMPORTED_BUSINESS_PAYMENT_LAMBDA_ENV_VAR_KEY_TRANSACTIONS_TABLE_NAME, importedTransactionsTableName);
+    businessPaymentLambda.addEnvironment(IMPORTED_BUSINESS_PAYMENT_LAMBDA_ENV_VAR_KEY_TUTOR_TRANSACTIONS_TABLE_NAME, importedTutorTransactionsTableName);
+    businessPaymentLambda.addEnvironment(IMPORTED_BUSINESS_PAYMENT_LAMBDA_ENV_VAR_KEY_TUTORS_TABLE_NAME, importedTutorsV2TableName);
+    businessPaymentLambda.addEnvironment(IMPORTED_BUSINESS_PAYMENT_LAMBDA_ENV_VAR_KEY_BUSINESS_INTERNAL_DEBTS_TABLE_NAME, importedBusinessInternalDebtsTableName);
+    businessPaymentLambda.addEnvironment(IMPORTED_BUSINESS_PAYMENT_LAMBDA_ENV_VAR_KEY_DISCORD_API_SECRETS_ARN, importedDiscordApiSecretsArn);
 
     // Grant Lambda permissions
     studentPaymentTable.grantReadWriteData(studentPaymentLambda);
     tutorPaymentTable.grantReadWriteData(tutorPaymentLambda);
+    businessPaymentTable.grantReadWriteData(businessPaymentLambda);
     apiSecrets.grantRead(studentPaymentLambda);
     apiSecrets.grantRead(tutorPaymentLambda);
 
@@ -225,6 +287,19 @@ export class MathPracsPaymentRemindersStack extends cdk.Stack {
     });
 
     tutorRemindersScheduleRule.addTarget(new targets.LambdaFunction(tutorPaymentLambda));
+
+    const businessRemindersScheduleRule = new events.Rule(this, BUSINESS_REMINDERS_EVENTBRIDGE_RULE_ID, {
+      ruleName: BUSINESS_REMINDERS_EVENTBRIDGE_RULE_NAME,
+      description: BUSINESS_REMINDERS_EVENTBRIDGE_RULE_DESCRIPTION,
+      schedule: events.Schedule.cron({
+        minute: BUSINESS_REMINDERS_EVENTBRIDGE_RULE_SCHEDULE_EXPRESSION_MINUTE,
+        hour: BUSINESS_REMINDERS_EVENTBRIDGE_RULE_SCHEDULE_EXPRESSION_HOUR,
+        day: BUSINESS_REMINDERS_EVENTBRIDGE_RULE_SCHEDULE_EXPRESSION_DAY,
+        month: BUSINESS_REMINDERS_EVENTBRIDGE_RULE_SCHEDULE_EXPRESSION_MONTH
+      }),
+    });
+
+    businessRemindersScheduleRule.addTarget(new targets.LambdaFunction(businessPaymentLambda));
 
     // Grant read access to imported DDB tables -- unsure if grant* helpers can be used on tables looked up by ARN
     studentPaymentLambda.addToRolePolicy(new aws_iam.PolicyStatement({
@@ -266,6 +341,44 @@ export class MathPracsPaymentRemindersStack extends cdk.Stack {
       ]
     }));
 
+    tutorPaymentLambda.addToRolePolicy(new aws_iam.PolicyStatement({
+      actions: [
+        'dynamodb:Scan', 'dynamodb:GetItem', 'dynamodb:Query', 'dynamodb:ConditionCheckItem', 'dynamodb:UpdateItem'
+      ],
+      resources: [
+          importedTutorsV2TableArn
+      ]
+    }));
+
+    tutorPaymentLambda.addToRolePolicy(new aws_iam.PolicyStatement({
+      actions: [
+        'dynamodb:Scan', 'dynamodb:GetItem', 'dynamodb:Query', 'dynamodb:ConditionCheckItem',
+        'dynamodb:PutItem', 'dynamodb:UpdateItem', 'dynamodb:DeleteItem', 'dynamodb:BatchWriteItem'
+      ],
+      resources: [
+        importedTutorTransactionsTableArn
+      ]
+    }));
+
+    businessPaymentLambda.addToRolePolicy(new aws_iam.PolicyStatement({
+      actions: ['dynamodb:Scan', 'dynamodb:GetItem', 'dynamodb:Query'],
+      resources: [
+          importedTransactionsTableArn,
+          importedTutorTransactionsTableArn,
+          importedTutorsV2TableArn
+      ]
+    }));
+
+    businessPaymentLambda.addToRolePolicy(new aws_iam.PolicyStatement({
+      actions: [
+        'dynamodb:Scan', 'dynamodb:GetItem', 'dynamodb:Query', 'dynamodb:ConditionCheckItem',
+        'dynamodb:PutItem', 'dynamodb:UpdateItem', 'dynamodb:DeleteItem', 'dynamodb:BatchWriteItem'
+      ],
+      resources: [
+        importedBusinessInternalDebtsTableArn
+      ]
+    }));
+
     // Grant read access to secrets
     studentPaymentLambda.addToRolePolicy(new aws_iam.PolicyStatement({
       actions: ['secretsmanager:GetSecretValue'],
@@ -273,6 +386,11 @@ export class MathPracsPaymentRemindersStack extends cdk.Stack {
     }));
 
     tutorPaymentLambda.addToRolePolicy(new aws_iam.PolicyStatement({
+      actions: ['secretsmanager:GetSecretValue'],
+      resources: [importedDiscordApiSecretsArn]
+    }));
+
+    businessPaymentLambda.addToRolePolicy(new aws_iam.PolicyStatement({
       actions: ['secretsmanager:GetSecretValue'],
       resources: [importedDiscordApiSecretsArn]
     }));
@@ -287,6 +405,14 @@ export class MathPracsPaymentRemindersStack extends cdk.Stack {
     }));
 
     tutorPaymentLambda.addToRolePolicy(new aws_iam.PolicyStatement({
+      actions: ['cloudwatch:PutMetricData'],
+      resources: ['*'],
+      conditions: {
+        StringEquals: { 'cloudwatch:namespace': METRICS_NAMESPACE }
+      }
+    }));
+
+    businessPaymentLambda.addToRolePolicy(new aws_iam.PolicyStatement({
       actions: ['cloudwatch:PutMetricData'],
       resources: ['*'],
       conditions: {
@@ -329,9 +455,11 @@ export class MathPracsPaymentRemindersStack extends cdk.Stack {
     // CloudWatch Alarms — per-dimension child alarms (no actions)
     const childAlarmConfig: { metricName: string; reasons: string[]; namePrefix: string }[] = [
       { metricName: 'StudentInfoDDB', reasons: ['MetadataScanException', 'StudentsScanException', 'MissingStudentName', 'StudentNotFound', 'MissingDiscordChannel', 'InvalidHourlyPricing', 'MissingHourlyPricing', 'MissingNoShowPricing', 'BalanceUpdateException'], namePrefix: 'student-info-ddb' },
-      { metricName: 'TutorInfoDDB', reasons: ['MetadataScanException', 'MissingTutorId', 'InvalidHourlyRate', 'MissingDisplayName', 'MissingTutorPaymentChannel'], namePrefix: 'tutor-info-ddb' },
+      { metricName: 'TutorInfoDDB', reasons: ['MetadataScanException', 'MissingTutorId', 'InvalidHourlyRate', 'MissingDisplayName', 'MissingTutorPaymentChannel', 'BalanceUpdateException', 'TutorsScanException'], namePrefix: 'tutor-info-ddb' },
       { metricName: 'PaymentReminderDDB', reasons: ['SessionsScanException', 'GetReminderException', 'PutReminderException', 'UpdateProcessedDiscordException'], namePrefix: 'payment-reminder-ddb' },
-      { metricName: 'TransactionsDDB', reasons: ['PutTransactionException'], namePrefix: 'transactions-ddb' },
+      { metricName: 'TransactionsDDB', reasons: ['PutTransactionException', 'TransactionsScanException'], namePrefix: 'transactions-ddb' },
+      { metricName: 'TutorTransactionsDDB', reasons: ['PutTutorTransactionException', 'TutorTransactionsScanException'], namePrefix: 'tutor-transactions-ddb' },
+      { metricName: 'BusinessInternalDebtsDDB', reasons: ['DebtsScanException', 'PutDebtException'], namePrefix: 'business-internal-debts-ddb' },
       { metricName: 'APIFailure', reasons: ['DiscordSendFailed', 'TutorDiscordSendFailed'], namePrefix: 'api-failure' },
       { metricName: 'UnknownFailures', reasons: ['UnhandledException'], namePrefix: 'unknown-failures' },
     ];
@@ -366,6 +494,8 @@ export class MathPracsPaymentRemindersStack extends cdk.Stack {
       { id: ALARM_TUTOR_INFO_DDB_ID, name: ALARM_TUTOR_INFO_DDB_NAME, description: ALARM_TUTOR_INFO_DDB_DESCRIPTION, metricName: 'TutorInfoDDB' },
       { id: ALARM_PAYMENT_REMINDER_DDB_ID, name: ALARM_PAYMENT_REMINDER_DDB_NAME, description: ALARM_PAYMENT_REMINDER_DDB_DESCRIPTION, metricName: 'PaymentReminderDDB' },
       { id: ALARM_TRANSACTIONS_DDB_ID, name: ALARM_TRANSACTIONS_DDB_NAME, description: ALARM_TRANSACTIONS_DDB_DESCRIPTION, metricName: 'TransactionsDDB' },
+      { id: ALARM_TUTOR_TRANSACTIONS_DDB_ID, name: ALARM_TUTOR_TRANSACTIONS_DDB_NAME, description: ALARM_TUTOR_TRANSACTIONS_DDB_DESCRIPTION, metricName: 'TutorTransactionsDDB' },
+      { id: ALARM_BUSINESS_INTERNAL_DEBTS_DDB_ID, name: ALARM_BUSINESS_INTERNAL_DEBTS_DDB_NAME, description: ALARM_BUSINESS_INTERNAL_DEBTS_DDB_DESCRIPTION, metricName: 'BusinessInternalDebtsDDB' },
       { id: ALARM_API_FAILURE_ID, name: ALARM_API_FAILURE_NAME, description: ALARM_API_FAILURE_DESCRIPTION, metricName: 'APIFailure' },
       { id: ALARM_UNKNOWN_FAILURES_ID, name: ALARM_UNKNOWN_FAILURES_NAME, description: ALARM_UNKNOWN_FAILURES_DESCRIPTION, metricName: 'UnknownFailures' },
     ];
@@ -401,6 +531,16 @@ export class MathPracsPaymentRemindersStack extends cdk.Stack {
     new cdk.CfnOutput(this, CFN_OUTPUT_TUTOR_LAMBDA_ID, {
       value: tutorPaymentLambda.functionName,
       description: CFN_OUTPUT_TUTOR_LAMBDA_DESCRIPTION
+    });
+
+    new cdk.CfnOutput(this, CFN_OUTPUT_BUSINESS_PAYMENT_TABLE_ID, {
+      value: businessPaymentTable.tableName,
+      description: CFN_OUTPUT_BUSINESS_PAYMENT_TABLE_DESCRIPTION
+    });
+
+    new cdk.CfnOutput(this, CFN_OUTPUT_BUSINESS_LAMBDA_ID, {
+      value: businessPaymentLambda.functionName,
+      description: CFN_OUTPUT_BUSINESS_LAMBDA_DESCRIPTION
     });
 
     new cdk.CfnOutput(this, CFN_OUTPUT_API_CREDENTIALS_SECRETS_ID, {
