@@ -455,7 +455,7 @@ export class MathPracsPaymentRemindersStack extends cdk.Stack {
     // CloudWatch Alarms — per-dimension child alarms (no actions)
     const childAlarmConfig: { metricName: string; reasons: string[]; namePrefix: string }[] = [
       { metricName: 'StudentInfoDDB', reasons: ['MetadataScanException', 'StudentsScanException', 'MissingStudentName', 'StudentNotFound', 'MissingDiscordChannel', 'InvalidHourlyPricing', 'MissingHourlyPricing', 'MissingNoShowPricing', 'BalanceUpdateException'], namePrefix: 'student-info-ddb' },
-      { metricName: 'TutorInfoDDB', reasons: ['MetadataScanException', 'MissingTutorId', 'InvalidHourlyRate', 'MissingDisplayName', 'MissingTutorPaymentChannel', 'BalanceUpdateException', 'TutorsScanException'], namePrefix: 'tutor-info-ddb' },
+      { metricName: 'TutorInfoDDB', reasons: ['MetadataScanException', 'MissingTutorId', 'InvalidHourlyRate', 'MissingDisplayName', 'MissingTutorPaymentChannel', 'BalanceUpdateException', 'TutorsScanException', 'TutorNotFound', 'FetchException'], namePrefix: 'tutor-info-ddb' },
       { metricName: 'PaymentReminderDDB', reasons: ['SessionsScanException', 'GetReminderException', 'PutReminderException', 'UpdateProcessedDiscordException'], namePrefix: 'payment-reminder-ddb' },
       { metricName: 'TransactionsDDB', reasons: ['PutTransactionException', 'TransactionsScanException'], namePrefix: 'transactions-ddb' },
       { metricName: 'TutorTransactionsDDB', reasons: ['PutTutorTransactionException', 'TutorTransactionsScanException'], namePrefix: 'tutor-transactions-ddb' },
