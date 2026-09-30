@@ -1,6 +1,6 @@
 ### What Is This
 
-This is the Infrastructure-as-Code of an AWS Micro Service which processes automated payment message reminders sent to Discord, for students and tutors enrolled in tutoring with MathPracs.
+This is the Infrastructure-as-Code of an AWS Micro Service which processes automated payment message reminders sent to Discord, for students and tutors enrolled in tutoring with MathPracs, and calculates what the MathPracs business partners owe each other.
 
 You can learn more about MathPracs at https://mathpracs.com
 
@@ -48,7 +48,7 @@ After this, all future changes are deployed automatically via the pipeline.
 #### Stack Dependencies
 
 This stack imports shared resources from [MathPracs-TutoringManagement-CDK](https://github.com/ahsanjkhan/MathPracs-TutoringManagement-CDK):
-- Sessions, StudentsV2, StudentsMetadataV2, TutorsV2, TutorsMetadataV2, Transactions DynamoDB Tables
+- Sessions, StudentsV2, StudentsMetadataV2, TutorsV2, TutorsMetadataV2, Transactions, TutorTransactions, BusinessInternalDebts DynamoDB Tables
 - Discord API Secrets
 
 **That stack must be deployed first** in the target account.
