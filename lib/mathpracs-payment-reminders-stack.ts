@@ -37,6 +37,26 @@ import {
   CFN_OUTPUT_BUSINESS_PAYMENT_TABLE_DESCRIPTION,
   CFN_OUTPUT_BUSINESS_LAMBDA_ID,
   CFN_OUTPUT_BUSINESS_LAMBDA_DESCRIPTION,
+  MUAZ_ONLY_ADJUSTMENT_LAMBDA_NAME,
+  MUAZ_ONLY_ADJUSTMENT_LAMBDA_ID,
+  MUAZ_ONLY_ADJUSTMENT_LAMBDA_RUNTIME,
+  MUAZ_ONLY_ADJUSTMENT_LAMBDA_ENTRY,
+  MUAZ_ONLY_ADJUSTMENT_LAMBDA_HANDLER,
+  MUAZ_ONLY_ADJUSTMENT_LAMBDA_TIMEOUT,
+  MUAZ_ONLY_ADJUSTMENT_LAMBDA_MEMORY_SIZE,
+  IMPORTED_MUAZ_ONLY_ADJUSTMENT_LAMBDA_ENV_VAR_KEY_TRANSACTIONS_TABLE_NAME,
+  IMPORTED_MUAZ_ONLY_ADJUSTMENT_LAMBDA_ENV_VAR_KEY_SESSIONS_TABLE_NAME,
+  IMPORTED_MUAZ_ONLY_ADJUSTMENT_LAMBDA_ENV_VAR_KEY_TUTORS_METADATA_TABLE_NAME,
+  IMPORTED_MUAZ_ONLY_ADJUSTMENT_LAMBDA_ENV_VAR_KEY_DISCORD_API_SECRETS_ARN,
+  MUAZ_ONLY_ADJUSTMENT_EVENTBRIDGE_RULE_NAME,
+  MUAZ_ONLY_ADJUSTMENT_EVENTBRIDGE_RULE_ID,
+  MUAZ_ONLY_ADJUSTMENT_EVENTBRIDGE_RULE_DESCRIPTION,
+  MUAZ_ONLY_ADJUSTMENT_EVENTBRIDGE_RULE_SCHEDULE_EXPRESSION_MINUTE,
+  MUAZ_ONLY_ADJUSTMENT_EVENTBRIDGE_RULE_SCHEDULE_EXPRESSION_HOUR,
+  MUAZ_ONLY_ADJUSTMENT_EVENTBRIDGE_RULE_SCHEDULE_EXPRESSION_DAY,
+  MUAZ_ONLY_ADJUSTMENT_EVENTBRIDGE_RULE_SCHEDULE_EXPRESSION_MONTH,
+  CFN_OUTPUT_MUAZ_ONLY_ADJUSTMENT_LAMBDA_ID,
+  CFN_OUTPUT_MUAZ_ONLY_ADJUSTMENT_LAMBDA_DESCRIPTION,
   ALARM_BUSINESS_INTERNAL_DEBTS_DDB_ID,
   ALARM_BUSINESS_INTERNAL_DEBTS_DDB_NAME,
   ALARM_BUSINESS_INTERNAL_DEBTS_DDB_DESCRIPTION,
@@ -256,6 +276,20 @@ export class MathPracsPaymentRemindersStack extends cdk.Stack {
     businessPaymentLambda.addEnvironment(IMPORTED_BUSINESS_PAYMENT_LAMBDA_ENV_VAR_KEY_BUSINESS_INTERNAL_DEBTS_TABLE_NAME, importedBusinessInternalDebtsTableName);
     businessPaymentLambda.addEnvironment(IMPORTED_BUSINESS_PAYMENT_LAMBDA_ENV_VAR_KEY_DISCORD_API_SECRETS_ARN, importedDiscordApiSecretsArn);
 
+    // Muaz-only Adjustment Lambda
+    const muazOnlyAdjustmentLambda = new python.PythonFunction(this, MUAZ_ONLY_ADJUSTMENT_LAMBDA_ID, {
+      functionName: MUAZ_ONLY_ADJUSTMENT_LAMBDA_NAME,
+      runtime: MUAZ_ONLY_ADJUSTMENT_LAMBDA_RUNTIME,
+      entry: MUAZ_ONLY_ADJUSTMENT_LAMBDA_ENTRY,
+      handler: MUAZ_ONLY_ADJUSTMENT_LAMBDA_HANDLER,
+      timeout: MUAZ_ONLY_ADJUSTMENT_LAMBDA_TIMEOUT,
+      memorySize: MUAZ_ONLY_ADJUSTMENT_LAMBDA_MEMORY_SIZE,
+    });
+    muazOnlyAdjustmentLambda.addEnvironment(IMPORTED_MUAZ_ONLY_ADJUSTMENT_LAMBDA_ENV_VAR_KEY_TRANSACTIONS_TABLE_NAME, importedTransactionsTableName);
+    muazOnlyAdjustmentLambda.addEnvironment(IMPORTED_MUAZ_ONLY_ADJUSTMENT_LAMBDA_ENV_VAR_KEY_SESSIONS_TABLE_NAME, importedSessionsTableName);
+    muazOnlyAdjustmentLambda.addEnvironment(IMPORTED_MUAZ_ONLY_ADJUSTMENT_LAMBDA_ENV_VAR_KEY_TUTORS_METADATA_TABLE_NAME, importedTutorsMetadataV2TableName);
+    muazOnlyAdjustmentLambda.addEnvironment(IMPORTED_MUAZ_ONLY_ADJUSTMENT_LAMBDA_ENV_VAR_KEY_DISCORD_API_SECRETS_ARN, importedDiscordApiSecretsArn);
+
     // Grant Lambda permissions
     studentPaymentTable.grantReadWriteData(studentPaymentLambda);
     tutorPaymentTable.grantReadWriteData(tutorPaymentLambda);
@@ -300,6 +334,19 @@ export class MathPracsPaymentRemindersStack extends cdk.Stack {
     });
 
     businessRemindersScheduleRule.addTarget(new targets.LambdaFunction(businessPaymentLambda));
+
+    const muazOnlyAdjustmentScheduleRule = new events.Rule(this, MUAZ_ONLY_ADJUSTMENT_EVENTBRIDGE_RULE_ID, {
+      ruleName: MUAZ_ONLY_ADJUSTMENT_EVENTBRIDGE_RULE_NAME,
+      description: MUAZ_ONLY_ADJUSTMENT_EVENTBRIDGE_RULE_DESCRIPTION,
+      schedule: events.Schedule.cron({
+        minute: MUAZ_ONLY_ADJUSTMENT_EVENTBRIDGE_RULE_SCHEDULE_EXPRESSION_MINUTE,
+        hour: MUAZ_ONLY_ADJUSTMENT_EVENTBRIDGE_RULE_SCHEDULE_EXPRESSION_HOUR,
+        day: MUAZ_ONLY_ADJUSTMENT_EVENTBRIDGE_RULE_SCHEDULE_EXPRESSION_DAY,
+        month: MUAZ_ONLY_ADJUSTMENT_EVENTBRIDGE_RULE_SCHEDULE_EXPRESSION_MONTH
+      }),
+    });
+
+    muazOnlyAdjustmentScheduleRule.addTarget(new targets.LambdaFunction(muazOnlyAdjustmentLambda));
 
     // Grant read access to imported DDB tables -- unsure if grant* helpers can be used on tables looked up by ARN
     studentPaymentLambda.addToRolePolicy(new aws_iam.PolicyStatement({
@@ -379,6 +426,15 @@ export class MathPracsPaymentRemindersStack extends cdk.Stack {
       ]
     }));
 
+    muazOnlyAdjustmentLambda.addToRolePolicy(new aws_iam.PolicyStatement({
+      actions: ['dynamodb:Scan', 'dynamodb:GetItem', 'dynamodb:Query'],
+      resources: [
+          importedTransactionsTableArn,
+          importedSessionsTableArn,
+          importedTutorsMetadataV2TableArn
+      ]
+    }));
+
     // Grant read access to secrets
     studentPaymentLambda.addToRolePolicy(new aws_iam.PolicyStatement({
       actions: ['secretsmanager:GetSecretValue'],
@@ -391,6 +447,11 @@ export class MathPracsPaymentRemindersStack extends cdk.Stack {
     }));
 
     businessPaymentLambda.addToRolePolicy(new aws_iam.PolicyStatement({
+      actions: ['secretsmanager:GetSecretValue'],
+      resources: [importedDiscordApiSecretsArn]
+    }));
+
+    muazOnlyAdjustmentLambda.addToRolePolicy(new aws_iam.PolicyStatement({
       actions: ['secretsmanager:GetSecretValue'],
       resources: [importedDiscordApiSecretsArn]
     }));
@@ -413,6 +474,14 @@ export class MathPracsPaymentRemindersStack extends cdk.Stack {
     }));
 
     businessPaymentLambda.addToRolePolicy(new aws_iam.PolicyStatement({
+      actions: ['cloudwatch:PutMetricData'],
+      resources: ['*'],
+      conditions: {
+        StringEquals: { 'cloudwatch:namespace': METRICS_NAMESPACE }
+      }
+    }));
+
+    muazOnlyAdjustmentLambda.addToRolePolicy(new aws_iam.PolicyStatement({
       actions: ['cloudwatch:PutMetricData'],
       resources: ['*'],
       conditions: {
@@ -541,6 +610,11 @@ export class MathPracsPaymentRemindersStack extends cdk.Stack {
     new cdk.CfnOutput(this, CFN_OUTPUT_BUSINESS_LAMBDA_ID, {
       value: businessPaymentLambda.functionName,
       description: CFN_OUTPUT_BUSINESS_LAMBDA_DESCRIPTION
+    });
+
+    new cdk.CfnOutput(this, CFN_OUTPUT_MUAZ_ONLY_ADJUSTMENT_LAMBDA_ID, {
+      value: muazOnlyAdjustmentLambda.functionName,
+      description: CFN_OUTPUT_MUAZ_ONLY_ADJUSTMENT_LAMBDA_DESCRIPTION
     });
 
     new cdk.CfnOutput(this, CFN_OUTPUT_API_CREDENTIALS_SECRETS_ID, {

@@ -1,6 +1,6 @@
 ### What Is This
 
-This is the Infrastructure-as-Code of an AWS Micro Service which processes automated payment message reminders sent to Discord, for students and tutors enrolled in tutoring with MathPracs, and calculates what the MathPracs business partners owe each other.
+This is the Infrastructure-as-Code of an AWS Micro Service which processes automated payment message reminders sent to Discord, for students and tutors enrolled in tutoring with MathPracs, and calculates what the MathPracs business partners owe each other, including the off-the-books Muaz-only adjustment.
 
 You can learn more about MathPracs at https://mathpracs.com
 
